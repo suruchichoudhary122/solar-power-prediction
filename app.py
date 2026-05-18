@@ -285,10 +285,9 @@ elif page == "⚠️ Anomaly Detection":
 # PAGE 5 — SHAP EXPLAINABILITY
 # ============================================================
 # Sample for SHAP speed
-X_test_shap = X_test.sample(300, random_state=42)
-shap_values = compute_shap(xgb,
-                            df[FEATURES].iloc[:split_idx],
-                            X_test_shap)
+# ============================================================
+# PAGE 5 — SHAP EXPLAINABILITY
+# ============================================================
 elif page == "🧠 SHAP Explainability":
     st.title("🧠 SHAP Feature Explainability")
     st.markdown("Understanding **why** the model makes each prediction.")
@@ -299,15 +298,18 @@ elif page == "🧠 SHAP Explainability":
         shap_values = explainer(_X_test)
         return shap_values
 
+    # Sample 300 rows for speed
+    X_test_shap = X_test.sample(300, random_state=42)
+
     with st.spinner("Computing SHAP values — only done once..."):
         shap_values = compute_shap(xgb,
                                    df[FEATURES].iloc[:split_idx],
-                                   X_test)
+                                   X_test_shap)
 
     # Summary plot
     st.subheader("Feature Impact Summary")
     fig, ax = plt.subplots(figsize=(10, 6))
-    shap.summary_plot(shap_values, X_test,
+    shap.summary_plot(shap_values, X_test_shap,
                       feature_names=FEATURES, show=False)
     st.pyplot(fig)
     plt.close()
@@ -317,7 +319,7 @@ elif page == "🧠 SHAP Explainability":
     # Bar plot
     st.subheader("Mean Absolute SHAP Value per Feature")
     fig, ax = plt.subplots(figsize=(10, 5))
-    shap.summary_plot(shap_values, X_test,
+    shap.summary_plot(shap_values, X_test_shap,
                       feature_names=FEATURES,
                       plot_type="bar", show=False)
     st.pyplot(fig)
@@ -327,9 +329,8 @@ elif page == "🧠 SHAP Explainability":
 
     # Waterfall
     st.subheader("Single Prediction Explained (Waterfall)")
-    sample = st.slider("Select test sample index", 0, len(X_test)-1, 10)
+    sample = st.slider("Select test sample index", 0, len(X_test_shap)-1, 10)
     fig, ax = plt.subplots(figsize=(10, 5))
     shap.waterfall_plot(shap_values[sample], show=False)
     st.pyplot(fig)
-    plt.close()
     plt.close()
