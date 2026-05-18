@@ -236,11 +236,10 @@ elif page == "📈 Model Performance":
 # ============================================================
 # PAGE 4 — ANOMALY DETECTION
 # ============================================================
-elif page == "Anomaly Detection":
-    st.title("Inverter Anomaly Detection")
+elif page == "⚠️ Anomaly Detection":
+    st.title("⚠️ Inverter Anomaly Detection")
     st.markdown("Inverters flagged when daily yield drops **below 80%** of plant average.")
 
-    # Summary KPIs
     col1, col2, col3 = st.columns(3)
     col1.metric("Total Inverters",     gen["SOURCE_KEY"].nunique())
     col2.metric("Anomalous Inverters", anomalies["SOURCE_KEY"].nunique())
@@ -248,21 +247,24 @@ elif page == "Anomaly Detection":
 
     st.markdown("---")
 
-    # Anomaly table
     st.subheader("Anomaly Log")
     st.dataframe(anomalies.sort_values("PERF_RATIO").reset_index(drop=True),
                  use_container_width=True)
 
     st.markdown("---")
 
-    # Inverter selector
-    st.subheader("Performance Ratio — Inverter Deep Dive")
-    inv_daily = (gen.groupby(["SOURCE_KEY", gen["DATE_TIME"].dt.date])["DAILY_YIELD"]
-                    .max().reset_index())
-    inv_daily.columns = ["SOURCE_KEY", "DATE", "DAILY_YIELD"]
-    overall_avg = inv_daily.groupby("DATE")["DAILY_YIELD"].transform("mean")
-    inv_daily["PERF_RATIO"] = inv_daily["DAILY_YIELD"] / overall_avg
+    @st.cache_data
+    def compute_inv_daily(_gen):
+        inv_daily = (_gen.groupby(["SOURCE_KEY", _gen["DATE_TIME"].dt.date])["DAILY_YIELD"]
+                        .max().reset_index())
+        inv_daily.columns = ["SOURCE_KEY", "DATE", "DAILY_YIELD"]
+        overall_avg = inv_daily.groupby("DATE")["DAILY_YIELD"].transform("mean")
+        inv_daily["PERF_RATIO"] = inv_daily["DAILY_YIELD"] / overall_avg
+        return inv_daily
 
+    inv_daily = compute_inv_daily(gen)
+
+    st.subheader("Performance Ratio — Inverter Deep Dive")
     selected = st.selectbox("Select Inverter", inv_daily["SOURCE_KEY"].unique())
     inv_data = inv_daily[inv_daily["SOURCE_KEY"] == selected].sort_values("DATE")
 
@@ -279,18 +281,28 @@ elif page == "Anomaly Detection":
     ax.tick_params(axis="x", rotation=45)
     st.pyplot(fig)
     plt.close()
-
 # ============================================================
 # PAGE 5 — SHAP EXPLAINABILITY
 # ============================================================
-elif page == "SHAP Explainability":
-    st.title("SHAP Feature Explainability")
+# Sample for SHAP speed
+X_test_shap = X_test.sample(300, random_state=42)
+shap_values = compute_shap(xgb,
+                            df[FEATURES].iloc[:split_idx],
+                            X_test_shap)
+elif page == "🧠 SHAP Explainability":
+    st.title("🧠 SHAP Feature Explainability")
     st.markdown("Understanding **why** the model makes each prediction.")
 
-    st.info("Computing SHAP values — this may take 20–30 seconds...")
+    @st.cache_data
+    def compute_shap(_model, _X_train, _X_test):
+        explainer   = shap.Explainer(_model, _X_train)
+        shap_values = explainer(_X_test)
+        return shap_values
 
-    explainer   = shap.Explainer(xgb, df[FEATURES].iloc[:split_idx])
-    shap_values = explainer(X_test)
+    with st.spinner("Computing SHAP values — only done once..."):
+        shap_values = compute_shap(xgb,
+                                   df[FEATURES].iloc[:split_idx],
+                                   X_test)
 
     # Summary plot
     st.subheader("Feature Impact Summary")
@@ -313,10 +325,11 @@ elif page == "SHAP Explainability":
 
     st.markdown("---")
 
-    # Waterfall for selected sample
+    # Waterfall
     st.subheader("Single Prediction Explained (Waterfall)")
     sample = st.slider("Select test sample index", 0, len(X_test)-1, 10)
     fig, ax = plt.subplots(figsize=(10, 5))
     shap.waterfall_plot(shap_values[sample], show=False)
     st.pyplot(fig)
+    plt.close()
     plt.close()
